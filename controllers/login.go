@@ -15,7 +15,7 @@ func (c *LoginController) Get() {
 		c.Ctx.SetCookie("uname", "", -1, "/")
 		c.Ctx.SetCookie("pwd", "", -1, "/")
 		c.Redirect("/", 302)
-		return
+		return   
 	}
 
 	c.TplName = "login.html"
