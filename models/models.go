@@ -29,6 +29,7 @@ type Topic struct {
 	Id 				int64
 	Uid 			int64
 	Title 			string
+	Category		string
 	Content 		string      `orm:"size(5000)"`
 	Attachment 		string
 	Created		    time.Time   `orm:"index"`
@@ -101,12 +102,13 @@ func GetAllCategories() ([]*Category, error) {
 }
 
 
-func AddTopic(title, content string) error {
+func AddTopic(title, category, content string) error {
 	o := orm.NewOrm()
 
 	topic := &Topic{
 		Title:title,
 		Content:content,
+		Category:category,
 		Created:time.Now(),
 		Updated:time.Now(),
 		ReplyTime:time.Now(),
@@ -155,7 +157,7 @@ func GetTopic(tid string) (*Topic, error) {
 	return topic, nil
 }
 
-func ModifyTopic(tid, title, content string) error {
+func ModifyTopic(tid, title, category, content string) error {
 	tidNum, err := strconv.ParseInt(tid, 10, 64)
 	if err != nil {
 		return err
@@ -166,6 +168,7 @@ func ModifyTopic(tid, title, content string) error {
 	if o.Read(topic) == nil {
 		topic.Title = title
 		topic.Content = content
+		topic.Category = category
 		topic.Updated = time.Now()
 		o.Update(topic)
 	}
