@@ -15,7 +15,7 @@ func (c *TopicController) Get()  {
 	c.TplName = "topic.html"
 
 	var err error
-	c.Data["Topics"], err = models.GetAllTopics(false)
+	c.Data["Topics"], err = models.GetAllTopics("",false)
 
 	if err != nil {
 		beego.Error(err)
@@ -27,7 +27,6 @@ func (c *TopicController) Post()  {
 		c.Redirect("/login", 302)
 		return
 	}
-
 
 	// 解析表单
 	tid := c.Input().Get("tid")
@@ -76,6 +75,15 @@ func (c *TopicController) View()  {
 	}
 	c.Data["Topic"] = topic
 	c.Data["Tid"] = tid
+
+	replies, err := models.GetAllReplies(tid)
+	if err != nil {
+		beego.Error(err)
+		return
+	}
+
+	c.Data["Replies"] = replies
+	c.Data["IsLogin"] = checkAccount(c.Ctx)
 }
 
 func (this *TopicController) Modify() {

@@ -41,6 +41,15 @@ type Topic struct {
 	ReplyLastUserId int64
 }
 
+// 评论
+type Comment struct {
+	Id      int64
+	Tid     int64
+	Name    string
+	Content string    `orm:"size(1000)"`
+	Created time.Time `orm:"index"`
+}
+
 func RegisterDB()  {
 	if !com.IsExist(_DB_NAME) {
 		os.MkdirAll(path.Dir(_DB_NAME), os.ModePerm)
@@ -48,7 +57,7 @@ func RegisterDB()  {
 	}
 
 	// 注册定义的 model
-	orm.RegisterModel(new(Category), new(Topic))
+	orm.RegisterModel(new(Category), new(Topic), new(Comment))
 	//注册驱动
 	orm.RegisterDriver(_SQLITES_DRIVER, orm.DRSqlite)
 	// 设置默认数据库
@@ -115,12 +124,28 @@ func AddTopic(title, category, content string) error {
 	}
 
 	_, err := o.Insert(topic)
+	if err != nil {
+		return err
+	}
+
+	//更新分类统计
+	cate := new(Category)
+	qs := o.QueryTable("category")
+	err = qs.Filter("title", category).One(cate)
+	if err == nil {
+		// 如果不存在我们就直接忽略，只当分类存在时进行更新
+		cate.TopicCount++
+		_, err = o.Update(cate)
+		if err != nil {
+			return err
+		}
+	}
 
 	return err
 }
 
 /*获取文章信息，isDesc : 是否为倒叙*/
-func GetAllTopics(isDesc bool) (topics []*Topic,err error) {
+func GetAllTopics(category string, isDesc bool) (topics []*Topic,err error) {
 	o := orm.NewOrm()
 
 	topics = make([]*Topic , 0)
@@ -128,6 +153,10 @@ func GetAllTopics(isDesc bool) (topics []*Topic,err error) {
 	qs := o.QueryTable("topic")
 
 	if isDesc {
+		if len(category) > 0 {
+			qs = qs.Filter("category", category)
+		}
+
 		_, err = qs.OrderBy("-created").All(&topics)
 	} else {
 		_, err = qs.All(&topics)
@@ -163,15 +192,48 @@ func ModifyTopic(tid, title, category, content string) error {
 		return err
 	}
 
+	//临时变量
+	var oldCate string
+
 	o := orm.NewOrm()
 	topic := &Topic{Id: tidNum}
 	if o.Read(topic) == nil {
+		oldCate = topic.Category
 		topic.Title = title
 		topic.Content = content
 		topic.Category = category
 		topic.Updated = time.Now()
-		o.Update(topic)
+		_, err = o.Update(topic)
+		if err != nil {
+			return err
+		}
 	}
+
+	//更新分类统计
+	if len(oldCate) > 0 {
+		cate := new(Category)
+		qs := o.QueryTable("category")
+		err = qs.Filter("title", oldCate).One(cate)
+		if err == nil {
+			cate.TopicCount--
+			_, err = o.Update(cate)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	cate := new(Category)
+	qs := o.QueryTable("category")
+	err = qs.Filter("title", category).One(cate)
+	if err == nil {
+		cate.TopicCount++
+		_, err = o.Update(cate)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -183,7 +245,74 @@ func DeleteTopic(tid string) error {
 
 	o := orm.NewOrm()
 
+	//更新分类统计
+	var oldCate string
 	topic := &Topic{Id: tidNum}
-	_, err = o.Delete(topic)
+	if o.Read(topic) == nil {
+		oldCate = topic.Category
+		_, err = o.Delete(topic)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(oldCate) > 0 {
+		cate := new(Category)
+		qs := o.QueryTable("category")
+		err = qs.Filter("title", topic.Category).One(cate)
+		if err == nil {
+			cate.TopicCount--
+			_, err = o.Update(cate)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return err
+}
+
+
+func AddReply(tid, nickname, content string) error {
+	tidNum, err := strconv.ParseInt(tid, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	reply := &Comment{
+		Tid:     tidNum,
+		Name:    nickname,
+		Content: content,
+		Created: time.Now(),
+	}
+	o := orm.NewOrm()
+	_, err = o.Insert(reply)
+	return err
+}
+
+func GetAllReplies(tid string) (replies []*Comment, err error) {
+	tidNum, err := strconv.ParseInt(tid, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	replies = make([]*Comment, 0)
+
+	o := orm.NewOrm()
+	qs := o.QueryTable("comment")
+	_, err = qs.Filter("tid", tidNum).All(&replies)
+	return replies, err
+}
+
+func DeleteReply(rid string) error {
+	ridNum, err := strconv.ParseInt(rid, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	o := orm.NewOrm()
+	reply := &Comment{Id:ridNum}
+
+	_, err = o.Delete(reply)
 	return err
 }
