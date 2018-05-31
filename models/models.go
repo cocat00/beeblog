@@ -287,6 +287,20 @@ func AddReply(tid, nickname, content string) error {
 	}
 	o := orm.NewOrm()
 	_, err = o.Insert(reply)
+
+	//更新回复数量
+	topic := new(Topic)
+	qs := o.QueryTable("topic")
+	err = qs.Filter("id", tidNum).One(topic)
+	if err == nil {
+		// 如果不存在我们就直接忽略，只当文章存在时进行更新
+		topic.ReplyCount++
+		_, err = o.Update(topic)
+		if err != nil {
+			return err
+		}
+	}
+
 	return err
 }
 
@@ -304,7 +318,12 @@ func GetAllReplies(tid string) (replies []*Comment, err error) {
 	return replies, err
 }
 
-func DeleteReply(rid string) error {
+func DeleteReply(tid, rid string) error {
+	tidNum, err := strconv.ParseInt(tid, 10, 64)
+	if err != nil {
+		return err
+	}
+
 	ridNum, err := strconv.ParseInt(rid, 10, 64)
 	if err != nil {
 		return err
@@ -314,5 +333,22 @@ func DeleteReply(rid string) error {
 	reply := &Comment{Id:ridNum}
 
 	_, err = o.Delete(reply)
+
+	//更新回复统计
+	topic := new(Topic)
+	qs := o.QueryTable("topic")
+	err = qs.Filter("id", tidNum).One(topic)
+	if err == nil {
+		// 如果不存在我们就直接忽略，只当文章存在时进行更新
+		topic.ReplyCount--
+		if topic.ReplyCount < 0 {
+			topic.ReplyCount = 0
+		}
+		_, err = o.Update(topic)
+		if err != nil {
+			return err
+		}
+	}
+
 	return err
 }
