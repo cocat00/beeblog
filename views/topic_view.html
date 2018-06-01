@@ -10,8 +10,14 @@
 </div>
 
 <div class="container " style="margin-top: 50px">
+{{$lables := .Lables}}
 {{with .Topic}}
-    <h1>{{.Title}}</h1>
+    <h1>{{.Title}} <small>{{.Category}}</small></h1>
+    <h5>
+    {{range $lables}}
+        <a href="/?lable={{.}}">{{.}}</a>
+    {{end}}
+    </h5>
 {{.Content}}
 {{end}}
 </div>

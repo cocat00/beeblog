@@ -25,7 +25,7 @@ func (this *ReplyController) Delete() {
 		return
 	}
 	tid := this.Input().Get("tid")
-	err := models.DeleteReply(tid, this.Input().Get("rid"))
+	err := models.DeleteReply(this.Input().Get("rid"))
 	if err != nil {
 		beego.Error(err)
 	}

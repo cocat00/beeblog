@@ -8,6 +8,7 @@ import (
 	"github.com/astaxie/beego/orm"
 	_ "github.com/mattn/go-sqlite3" //导入驱动
 	"strconv"
+	"strings"
 )
 
 const (
@@ -30,6 +31,7 @@ type Topic struct {
 	Uid 			int64
 	Title 			string
 	Category		string
+	Lables			string
 	Content 		string      `orm:"size(5000)"`
 	Attachment 		string
 	Created		    time.Time   `orm:"index"`
@@ -111,11 +113,15 @@ func GetAllCategories() ([]*Category, error) {
 }
 
 
-func AddTopic(title, category, content string) error {
+func AddTopic(title, category, lable, content string) error {
+	// 处理标签
+	lable = "$" + strings.Join(strings.Split(lable, " "), "#$") + "#"
+
 	o := orm.NewOrm()
 
 	topic := &Topic{
 		Title:title,
+		Lables:lable,
 		Content:content,
 		Category:category,
 		Created:time.Now(),
@@ -145,7 +151,7 @@ func AddTopic(title, category, content string) error {
 }
 
 /*获取文章信息，isDesc : 是否为倒叙*/
-func GetAllTopics(category string, isDesc bool) (topics []*Topic,err error) {
+func GetAllTopics(category string, lable string, isDesc bool) (topics []*Topic,err error) {
 	o := orm.NewOrm()
 
 	topics = make([]*Topic , 0)
@@ -156,7 +162,9 @@ func GetAllTopics(category string, isDesc bool) (topics []*Topic,err error) {
 		if len(category) > 0 {
 			qs = qs.Filter("category", category)
 		}
-
+		if len(lable) > 0 {
+			qs = qs.Filter("lables__contains", "$"+lable+"#")
+		}
 		_, err = qs.OrderBy("-created").All(&topics)
 	} else {
 		_, err = qs.All(&topics)
@@ -183,14 +191,20 @@ func GetTopic(tid string) (*Topic, error) {
 
 	topic.Views++
 	_, err = o.Update(topic)
+
+
+	topic.Lables = strings.Replace(strings.Replace(topic.Lables, "#", " ", -1), "$", "", -1)
+
 	return topic, nil
 }
 
-func ModifyTopic(tid, title, category, content string) error {
+func ModifyTopic(tid, title, category, lable, content string) error {
 	tidNum, err := strconv.ParseInt(tid, 10, 64)
 	if err != nil {
 		return err
 	}
+
+	lable = "$" + strings.Join(strings.Split(lable, " "), "#$") + "#"
 
 	//临时变量
 	var oldCate string
@@ -200,6 +214,7 @@ func ModifyTopic(tid, title, category, content string) error {
 	if o.Read(topic) == nil {
 		oldCate = topic.Category
 		topic.Title = title
+		topic.Lables = lable
 		topic.Content = content
 		topic.Category = category
 		topic.Updated = time.Now()
@@ -289,17 +304,27 @@ func AddReply(tid, nickname, content string) error {
 	_, err = o.Insert(reply)
 
 	//更新回复数量
-	topic := new(Topic)
-	qs := o.QueryTable("topic")
-	err = qs.Filter("id", tidNum).One(topic)
-	if err == nil {
-		// 如果不存在我们就直接忽略，只当文章存在时进行更新
+	topic := &Topic{Id:tidNum}
+	if o.Read(topic) == nil{
+		topic.ReplyTime = time.Now()
 		topic.ReplyCount++
 		_, err = o.Update(topic)
 		if err != nil {
-			return err
+			 return err
 		}
 	}
+
+	//topic := new(Topic)
+	//qs := o.QueryTable("topic")
+	//err = qs.Filter("id", tidNum).One(topic)
+	//if err == nil {
+	//	// 如果不存在我们就直接忽略，只当文章存在时进行更新
+	//	topic.ReplyCount++
+	//	_, err = o.Update(topic)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
 
 	return err
 }
@@ -318,37 +343,58 @@ func GetAllReplies(tid string) (replies []*Comment, err error) {
 	return replies, err
 }
 
-func DeleteReply(tid, rid string) error {
-	tidNum, err := strconv.ParseInt(tid, 10, 64)
-	if err != nil {
-		return err
-	}
-
+func DeleteReply(rid string) error {
 	ridNum, err := strconv.ParseInt(rid, 10, 64)
 	if err != nil {
 		return err
 	}
 
 	o := orm.NewOrm()
+
+	var tidNum int64
 	reply := &Comment{Id:ridNum}
-
-	_, err = o.Delete(reply)
-
-	//更新回复统计
-	topic := new(Topic)
-	qs := o.QueryTable("topic")
-	err = qs.Filter("id", tidNum).One(topic)
-	if err == nil {
-		// 如果不存在我们就直接忽略，只当文章存在时进行更新
-		topic.ReplyCount--
-		if topic.ReplyCount < 0 {
-			topic.ReplyCount = 0
-		}
-		_, err = o.Update(topic)
+	if o.Read(reply) == nil {
+		tidNum = reply.Tid
+		_, err = o.Delete(reply)
 		if err != nil {
 			return err
 		}
 	}
+
+	replies := make([]*Comment, 0)
+	qs := o.QueryTable("comment")
+	_, err = qs.Filter("tid", tidNum).OrderBy("-created").All(&replies)
+	if err != nil {
+		return err
+	}
+
+	topic := &Topic{Id:tidNum}
+
+	if o.Read(topic) == nil {
+		if len(replies) > 0  {
+			topic.ReplyTime = replies[0].Created
+		} else {
+			topic.ReplyTime = time.Now()
+		}
+		topic.ReplyCount = int64(len(replies))
+		_, err = o.Update(topic)
+	}
+
+	////更新回复统计
+	//topic := new(Topic)
+	//qs := o.QueryTable("topic")
+	//err = qs.Filter("id", tidNum).One(topic)
+	//if err == nil {
+	//	// 如果不存在我们就直接忽略，只当文章存在时进行更新
+	//	topic.ReplyCount--
+	//	if topic.ReplyCount < 0 {
+	//		topic.ReplyCount = 0
+	//	}
+	//	_, err = o.Update(topic)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
 
 	return err
 }
