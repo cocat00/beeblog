@@ -18,8 +18,9 @@
         <a href="/?lable={{.}}">{{.}}</a>
     {{end}}
     </h5>
-{{.Content}}
-{{end}}
+    {{.Content}}
+    <h5>文章附件: <a href="/attachment/{{.Attachment}}"> {{.Attachment}} </a></h5>
+    {{end}}
 </div>
 
 <div class="container">

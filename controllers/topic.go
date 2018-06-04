@@ -4,6 +4,7 @@ import (
 	"github.com/astaxie/beego"
 	"beeblog/models"
 	"strings"
+	"path"
 )
 
 type TopicController struct {
@@ -36,11 +37,28 @@ func (c *TopicController) Post()  {
 	content := c.Input().Get("content")
 	lable := c.Input().Get("lable")
 
-	var err error
+	//获取附件
+	_, fh, err := c.GetFile("attachment")
+	if err != nil {
+		beego.Error(err)
+	}
+
+	var attachment string
+	if fh != nil {
+		//保存附件
+		attachment = fh.Filename
+		beego.Info(attachment)
+		err = c.SaveToFile("attachment", path.Join("attachment", attachment))
+		if err != nil {
+			beego.Error(err)
+		}
+	}
+
+	//var err error
 	if len(tid) == 0 {
-		err = models.AddTopic(title, category , lable, content)
+		err = models.AddTopic(title, category , lable, content, attachment)
 	} else {
-		err = models.ModifyTopic(tid, title, category, lable, content)
+		err = models.ModifyTopic(tid, title, category, lable, content, attachment)
 	}
 
 	if err != nil {
@@ -68,7 +86,11 @@ func (c *TopicController) View()  {
 
 	c.TplName = "topic_view.html"
 
-	tid := c.Ctx.Input.Param("0")
+	reqUrl := c.Ctx.Request.RequestURI
+	i := strings.LastIndex(reqUrl, "/")
+	tid := reqUrl[i+1:]
+
+	//tid := c.Ctx.Input.Param("0")
 	topic, err := models.GetTopic(tid)
 	if err != nil {
 		beego.Error(err)

@@ -6,6 +6,7 @@ import (
 	"github.com/astaxie/beego/orm"
 	"github.com/astaxie/beego"
 	"beeblog/controllers"
+	"os"
 )
 
 func init()  {
@@ -27,6 +28,14 @@ func main() {
 	beego.Router("/reply/delete", &controllers.ReplyController{}, "get:Delete")
 	beego.Router("/topic", &controllers.TopicController{})
 	beego.AutoRouter(&controllers.TopicController{}) //自动路由
+
+	//创建附件目录
+	os.Mkdir("attachment", os.ModePerm)
+	////作为静态文件
+	//beego.SetStaticPath("/attachment", "attachment")
+
+	beego.Router("/attachment/:all", &controllers.AttachController{})
+
 
 	beego.Run()
 }
