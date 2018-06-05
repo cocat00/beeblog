@@ -60,7 +60,7 @@ func RegisterDB()  {
 
 	// 注册定义的 model
 	orm.RegisterModel(new(Category), new(Topic), new(Comment))
-	//注册驱动
+	//注册数据库驱动
 	orm.RegisterDriver(_SQLITES_DRIVER, orm.DRSqlite)
 	// 设置默认数据库
 	//数据库存放位置：_DB_NAME ， 数据库别名：default

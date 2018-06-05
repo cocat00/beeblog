@@ -5,11 +5,11 @@ import (
 	"beeblog/models"
 )
 
-type MainController struct {
+type HomeController struct {
 	beego.Controller
 }
 
-func (c *MainController) Get() {
+func (c *HomeController) Get() {
 	c.Data["IsHome"] = true
 	//c.Data["IsCategory"] = true
 	c.TplName = "home.html"
